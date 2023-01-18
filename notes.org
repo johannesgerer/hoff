@@ -1,0 +1,69 @@
+* sort as function and in select/exec
+* distinct (without changing the order), as function and select/exec
+* exec by -> dict with homogenous Vector
+* exec a:x, b:y -> static typing, large-anon record (=dict to vectors of different static types)
+* template haskell: 
+** lift all data.vector/generic function
+** all data.text functinos
+** all numerical functions
+* todo
+** make Eq TableKey safe?
+** change I None to Maybe Void for more consistency
+** think about argument order for `rename(2)`, `sn`, etc
+** think about name clashes (update, join, rename, etc). see `makeUniqueNames`
+*** update uses mergeTablesPreferSecond (so overwrites), but adds numbers on duplicates in generated cols
+λ> t1
+a   b  c d
+----------
+9.0 10 a a
+7.0 20 a a
+7.0 40 b b
+3.0 30 b b
+
+λ> update [ci #a True] t1
+a b  c d
+--------
+1 10 a a
+1 20 a a
+1 40 b b
+1 30 b b
+
+λ> update [ci #a True, ci #a False] t1
+a b  c d a1
+-----------
+1 10 a a 0 
+1 20 a a 0 
+1 40 b b 0 
+1 30 b b 0 
+*** rename is brutal
+λ> rename [#a,#b] [#a,#a] t1
+a   a  c d
+----------
+9.0 10 a a
+7.0 20 a a
+7.0 40 b b
+3.0 30 b b
+
+λ> rename [#b] [#a] t1
+a   a  c d
+----------
+9.0 10 a a
+7.0 20 a a
+7.0 40 b b
+3.0 30 b b
+** get rid of ai,am,ei,am, etc:
+make select, etc, polymorphic to accept Heterogenous lists (i.e. tuples?) of Exp f a, ExpDyn f, etc
+
+this should get rid of the need to have `ai`, `af`, `ei`
+
+the type class simply has to have a class method that converts to
+
+ExpDyns I -- for select
+ExpDyns Vector -- selectBy
+AggDyns Vector -- aggBy
+AggDyns I -- agg
+
+this might lead to an ambiguity for the IsLabel instance.
+** get rid of "symbol" stuff from q (i.e. backtick Show instance, even rename the type?)
+* math expr
+** add subset operator: a ⊆ b = ~[a \ b]
