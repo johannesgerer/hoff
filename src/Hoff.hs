@@ -8,6 +8,8 @@ import Hoff.Dict as S
 import Hoff.H as S
 import Hoff.HQuery as S
 import Hoff.HQuery.Operators as S
+import Hoff.HQuery.Execution as S
+import Hoff.HQuery.Expressions as S
 import Hoff.JSON as S (parseKeyToRecordMap, parseVectorOfRecords, decodeVectorOfRecordsWith, decodeKeyToRecordMapWith)
 import Hoff.Python as S
 import Hoff.Serialise as S

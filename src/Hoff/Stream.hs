@@ -7,7 +7,7 @@ import qualified Data.Vector.Mutable as M
 import           Hoff.Dict
 import           Hoff.H
 import           Control.Lens ((%~))
-import           Hoff.HQuery ()
+import           Hoff.HQuery.Expressions ()
 import           Hoff.Table
 import           Yahp hiding (bind)
 

@@ -67,7 +67,8 @@ crossExample = mapM_ print [t1,t2,t3,g1,g2,g3]
 
   
 
-t1 = unsafeH $ #a <# [9,7,7,3 :: Double] // tc #b [10,20,40,30 :: Int64] // tc #c ['a','a','b','b'] // tc #d ["a","a","b","b"::Text]
+t1 = unsafeH $ #a <# [9,7,7,3 :: Double] // tc #b [10,20,40,30 :: Int64] // tc #c ['a','a','b','b']
+  // tc #d ["a","a","b","b"::Text]
 
 -- t3 = select [ei @Int #b #a, #c </ liftV2 ((+) @Int) #a #b, #k </ fmap (C.Time . fromIntegral @Int64) #b ] t1
 

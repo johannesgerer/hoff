@@ -21,9 +21,9 @@ import           Hoff.Utils
 import           Yahp as P hiding (reduce, take, drop, null)
 
 
-type TableRow r = (AllFields r Typeable, KnownFields r, AllFields r (Compose Iterable Vector))
-type WrappableTableRow r = (TableRow r, AllFields r Wrappable3)
-type WrappableTableRowIorM r = (TableRow r, AllFields r (WrappableIorM Vector))
+type TableRowT r = (AllFields r Typeable, KnownFields r, AllFields r (Compose Iterable Vector))
+type WrappableTableRow r = (TableRowT r, AllFields r Wrappable3)
+type WrappableTableRowIorM r = (TableRowT r, AllFields r (WrappableIorM Vector))
 
 newtype TypedTable' v (r :: Row Type) = UnsafeTypedTable { fromUnsafeTypedTable :: Record v r }
 
@@ -84,7 +84,7 @@ typedTable :: forall r v . (KnownFields r, AllFields r (Compose Iterable v))
 typedTable r = case equalLength $ toVector $ snd <$> ls of
   Just (_, True) -> throwH $ TableDifferentColumnLenghts $ show ls
   _              -> pure $ UnsafeTypedTable r 
-  where ls = R.toList $ R.cmap (Proxy @(Compose Iterable v)) (K . count) r
+  where ls = R.toList $ R.cmap (Proxy @(Compose Iterable v)) (K . I . count) r
 {-# INLINABLE typedTable #-}
 
 col :: forall a r v c . (KnownSymbol c, RowHasField c r a) => Field c -> TypedTable' v r -> v a
@@ -95,16 +95,16 @@ col f = R.get f . columnRecord
 -- |
 -- Example: rowsR @('[ "a" ':= Double, "c" ':= Char]) t1
 -- 
-rowsR :: forall r t . (HasCallStack, TableRow r, ToTable t) => t -> VectorH (Record I r)
+rowsR :: forall r t . (HasCallStack, TableRowT r, ToTable t) => t -> VectorH (Record I r)
 rowsR = chainToH @Table $ fmap (flipTypedTable I) . columns
 {-# INLINABLE rowsR #-}
 
-instance TableRow r => FromTable (TypedTable r) where
+instance TableRowT r => FromTable (TypedTable r) where
   fromTable = columnsF
   {-# INLINE fromTable #-} 
 
 -- | mostly used as helper
-fromTableCommons :: (ToTable t, HasCallStack, TableRow r) =>
+fromTableCommons :: (ToTable t, HasCallStack, TableRowT r) =>
   (forall a . (Typeable a, HasCallStack) => Maybe Symbol -> TableCol -> H (Vector a))
   -> t -> TypedTableH r
 fromTableCommons fromW = chainToH $ \t -> fmap UnsafeTypedTable $ R.cmapM (Proxy @Typeable)
@@ -135,11 +135,11 @@ instance (WrappableTableRow r) => ToH Table (TypedTable r) where
   {-# INLINE toH #-}
 
 -- | using fromWrappedDyn
-columns :: forall r t . (HasCallStack, ToTable t, TableRow r) => t -> H (TypedTable r)
+columns :: forall r t . (HasCallStack, ToTable t, TableRowT r) => t -> H (TypedTable r)
 columns = fromTableCommons fromWrappedDyn
 {-# INLINABLE columns #-}
 
-columnsF :: forall r t . (HasCallStack,  ToTable t, TableRow r) => t -> H (TypedTable r)
+columnsF :: forall r t . (HasCallStack,  ToTable t, TableRowT r) => t -> H (TypedTable r)
 columnsF = fromTableCommons fromWrappedDynF
 {-# INLINABLE columnsF #-}
 
@@ -157,13 +157,13 @@ fromColumns = table . fmap (first toS) . R.toList . R.cmap (Proxy @(WrappableIor
 {-# INLINABLE fromColumns #-}
 
  
-flipTypedTable :: (TableRow r, HasCallStack) => (forall a . a -> b a)
+flipTypedTable :: (TableRowT r, HasCallStack) => (forall a . a -> b a)
   -> TypedTable r -> Vector (Record b r)
 flipTypedTable pureB cs = V.generate (count cs) $ \idx -> R.map (\v -> pureB $ V.unsafeIndex v idx)
   $ columnRecord cs
 {-# INLINABLE flipTypedTable #-}
  
-flipRecord :: forall r . (TableRow r, HasCallStack) => Vector (Record I r) -> TypedTable r
+flipRecord :: forall r . (TableRowT r, HasCallStack) => Vector (Record I r) -> TypedTable r
 flipRecord = UnsafeTypedTable . R.distribute'
 {-# INLINABLE flipRecord #-}
 

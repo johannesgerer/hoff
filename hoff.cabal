@@ -13,8 +13,8 @@ synopsis: Haskell dataframes
 -- The license under which the package is released.
 license: Apache-2.0
 
--- A copyright notice.
--- copyright:
+author: Johannes Gerer
+copyright: 2022-2023 Johannes Gerer
 -- category:
 
 data-files: python/HoffSerialise.py
@@ -26,7 +26,8 @@ library
        ,Hoff.Dict
        ,Hoff.Examples
        ,Hoff.H
-       ,Hoff.HQuery
+       ,Hoff.HQuery.Expressions
+       ,Hoff.HQuery.Execution
        ,Hoff.HQuery.Operators
        ,Hoff.HQuery.TH
        ,Hoff.Iterable

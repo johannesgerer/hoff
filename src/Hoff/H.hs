@@ -5,7 +5,6 @@ module Hoff.H where
 
 import           Control.Lens
 import qualified Prelude
-import           Data.Record.Anon (Row)
 import           TextShow hiding (fromString)
 import           Yahp
 

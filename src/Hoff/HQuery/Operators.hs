@@ -121,8 +121,8 @@ fromJustD :: HasCallStack => HQueryDyn t -> HQueryDyn t
 fromJustD = HQueryDyn . liftCWithName (fromJustCol Nothing)
 {-# INLINABLE fromJustD #-}
 
-fromMaybe_ :: c -> Exp (P.Maybe c) -> Exp c
-fromMaybe_ = liftE1 P.fromMaybe
+fromMaybe_ :: Functor f => c -> Exp f (P.Maybe c) -> Exp f c
+fromMaybe_ = fmap . P.fromMaybe
 {-# INLINABLE fromMaybe_ #-}
 
 toM :: HQueryDyn f -> HQueryDyn f

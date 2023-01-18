@@ -57,7 +57,7 @@ instance ToH Table KeyedTable               where toH = unkey
 instance ToH Table KeyedTableH              where toH = unkey
 
 instance DistinctIterable Table where
-  distinct t | count (cols t) == 1 = mapTable (mapTableCol distinctV) t
+  distinct t | count (cols t) == 1 = mapTableNoLengthCheck (mapTableCol distinctV) t
              | True                = unsafeBackpermute (coerce $ distinctVIndices $ toUnsafeKeyVector t) t
   {-# INLINABLE distinct #-}
              
@@ -76,7 +76,7 @@ instance Iterable Table => DictComponent Table where
   -- (!)             :: HasCallStack => Table          -> Int  -> TableKey
   -- t ! idx = A.map (\col -> I $ col V.! idx) t 
 
-  unsafeBackpermuteMaybe = mapMTableWithName . unsafeBackpermuteMaybeTableCol
+  unsafeBackpermuteMaybe = mapMTableWithNameNoLengthCheck . unsafeBackpermuteMaybeTableCol
   {-# INLINE unsafeBackpermuteMaybe #-}
 
 
@@ -136,25 +136,51 @@ toWrappedDynI :: (ICoerce f a, Wrappable a) => f a -> WrappedDyn f
 toWrappedDynI = WrappedDyn typeRep . coerceI
 {-# INLINABLE toWrappedDynI #-}
 
+class Functor f => ColumnData' f where
+  emptyCol              :: f a
+  toNothingColumn       :: f a -> f (Maybe b)
+  coerceFromI           :: f (I a) -> f a
+
+instance ColumnData' Vector where
+  emptyCol              = V.empty
+  toNothingColumn       = replicateNothing
+  coerceFromI           = coerce
+
+instance ColumnData' (Vector :.: Vector) where
+  emptyCol              = Comp V.empty
+  toNothingColumn       = Comp . fmap replicateNothing . unComp
+  coerceFromI           = coerce
+
+instance ColumnData' (I :.: Vector) where
+  emptyCol              = Comp $ I V.empty
+  toNothingColumn       = Comp . fmap replicateNothing . unComp
+  coerceFromI           = coerce
+
+-- | order of the two args in chosen such that useage of this gives nice type application possibilities
+type ColumnData a f = (ColumnDataD f, Typeable a)
+type ColumnDataD f = (ColumnData' (f :.: Vector), Functor f)
+
 -- | convenience: unwraps (I a) to a
-fromWrappedDyn :: forall a . (Typeable a, HasCallStack) => Maybe Symbol -> TableCol -> H (Vector a)
+fromWrappedDyn :: forall a g . (ColumnData' g, Typeable a, HasCallStack)
+  => Maybe Symbol -> TableCol' g -> H (g a)
 fromWrappedDyn _ (WrappedDyn tr@(App con t) v)
   | Just HRefl <- con  `eqTypeRep` typeRep @I
-  , Just HRefl <- t    `eqTypeRep` typeRep @a                  = pure $ coerceUI v
-  | Just HRefl <- tr   `eqTypeRep` typeRep @(I Void)            = pure mempty
+  , Just HRefl <- t    `eqTypeRep` typeRep @a                  = pure $ coerceFromI v
+  | Just HRefl <- tr   `eqTypeRep` typeRep @(I Void)            = pure emptyCol
 fromWrappedDyn n w = fromWrappedDynF n w
 {-# INLINABLE fromWrappedDyn #-}
 
 -- | the full blown version (which has an inverse: toWrappedDyn (up to I None ~ Maybe a equivalence))
-fromWrappedDynF :: forall a . (Typeable a, HasCallStack) => Maybe Symbol -> TableCol -> H (Vector a)
+fromWrappedDynF :: forall a g . (ColumnData' g, Typeable a, HasCallStack)
+  => Maybe Symbol -> TableCol' g -> H (g a)
 fromWrappedDynF _ (WrappedDyn tf v)
   | Just HRefl <- ta   `eqTypeRep` tf                          = pure $ v
   | Just HRefl <- tf   `eqTypeRep` typeRep @(I None)
   , App cona _ <- ta
-  , Just HRefl <- cona `eqTypeRep` typeRep @Maybe               = pure $ replicateNothing v
+  , Just HRefl <- cona `eqTypeRep` typeRep @Maybe               = pure $ toNothingColumn v
   | Just HRefl <- tf   `eqTypeRep` typeRep @(I Void)            
   , App cona _ <- ta
-  , Just HRefl <- cona `eqTypeRep` typeRep @I                   = pure mempty
+  , Just HRefl <- cona `eqTypeRep` typeRep @I                   = pure emptyCol
   where ta  = typeRep @a
 fromWrappedDynF name (WrappedDyn t _ ) = throwH $ TypeMismatch $
   "Column " <> maybe "<unknown>" show name <> ": Cannot convert " <> show t <> " to " <> show (typeRep @a)
@@ -398,7 +424,7 @@ fromJusts :: (ToTable t, HasCallStack, ToVector f) => f Symbol -> t -> TableH
 {-# INLINABLE fromJusts #-}
 fromJusts columns = chainToH g
   where g table
-          | null errs = flip mapMTableWithName table $ \col v ->
+          | null errs = flip mapMTableWithNameNoLengthCheck table $ \col v ->
               if V.elem col cvec then fromJustCol (Just table) (Just col) v else toMaybe' col v
           | True      = throwH $ KeyNotFound $ ": The following columns do not exist:\n"
             <> show errs <> "\nAvailable:\n" <> show (cols table)
@@ -406,7 +432,7 @@ fromJusts columns = chainToH g
         cvec = toVector columns
 
 allToMaybe :: (ToTable t, HasCallStack) => t -> TableH
-allToMaybe  = chainToH $ mapMTableWithName toMaybe'
+allToMaybe  = chainToH $ mapMTableWithNameNoLengthCheck toMaybe'
 {-# INLINABLE allToMaybe #-}
 
 -- | convert column to Maybe (if it is not already)
@@ -418,25 +444,26 @@ toMaybe :: HasCallStack => Maybe Symbol -> TableCol ->  TableColH
 toMaybe = modifyMaybeCol Nothing
 
 allFromJusts :: (ToTable t, HasCallStack) => t -> TableH
-allFromJusts = chainToH $ \t -> mapMTableWithName (\col v -> fromJustCol (Just t) (Just col) v) t
+allFromJusts = chainToH $ \t -> mapMTableWithNameNoLengthCheck (\col v -> fromJustCol (Just t) (Just col) v) t
 {-# INLINABLE allFromJusts #-}
 
-data TableColModifierWithDefault = TableColModifierWithDefault
-  (forall g . g -> Vector g -> Vector g)
+data TableColModifierWithDefault f = TableColModifierWithDefault
+  (forall g . g -> f g -> f g)
 
-modifyMaybeCol :: HasCallStack => Maybe TableColModifierWithDefault
-  -> Maybe Symbol -> TableCol -> TableColH
+modifyMaybeCol :: forall f . (ColumnData' f, HasCallStack) => Maybe (TableColModifierWithDefault f)
+  -> Maybe Symbol -> TableCol' f -> TableColH' f
 modifyMaybeCol fM _ col'@(WrappedDyn t@(App con _) col)
   | Just HRefl <- con `eqTypeRep` R.typeRep @Maybe      = g Nothing col' col
   | Just HRefl <- t   `eqTypeRep` R.typeRep @(I None)   = g (I $ None ()) col' col
-  | Just HRefl <- t   `eqTypeRep` R.typeRep @(I Void)   = pure $ toWrappedDynI $ mempty @(Vector None)
+  | Just HRefl <- t   `eqTypeRep` R.typeRep @(I Void)   = pure $ toWrappedDyn @(I None) emptyCol
   | Just HRefl <- con `eqTypeRep` R.typeRep @I          =
-      let c = Just <$> coerceUI col in g Nothing (toWrappedDyn c) c
-  where g :: forall g a . Wrappable2 g a => g a -> TableCol -> Vector (g a) -> TableColH
+      let c = Just <$> coerceFromI col in g Nothing (toWrappedDyn c) c
+  where g :: forall g a . Wrappable2 g a => g a -> TableCol' f -> f (g a) -> TableColH' f
         g v wrapped raw = case fM of
           Just (TableColModifierWithDefault f)  -> pure $ toWrappedDyn $ f v raw
           _                                     -> pure wrapped
 modifyMaybeCol  _ name       w            = errorMaybeOrI name w
+{-# INLINABLE modifyMaybeCol #-}
                                
 voidCol :: WrappedDyn Vector
 voidCol = toWrappedDynI $ mempty @(Vector Void)
@@ -600,7 +627,7 @@ concatMatchingTables (t :| ts) = table2 . mapDictValues
           replicateNothing (\b a _ _ -> toWrappedDyn $ appendVector b a) x . flipTable
 
 replicateTable :: Int -> Table -> Table
-replicateTable n = mapTableWrapped $ V.concat . Prelude.replicate n
+replicateTable n = mapTableWrappedNoLengthCheck $ V.concat . Prelude.replicate n
 
 -- | carefull! this is usually O((resulting rows)^2) because table concatenation is O(resulting rows)
 fold1TableH :: ToTable t => (TableH -> TableH -> TableH) -> NonEmpty t -> TableH
@@ -684,7 +711,7 @@ summaryKeys = toVector ["type"
                        ,"frequency"]
 
 summary :: ToTable t => t -> KeyedTableH
-summary = chainToH $ \t -> dict (tc' (s t) $ summaryKeys) =<< mapMTableWithName summaryCol t
+summary = chainToH $ \t -> dict (tc' (s t) $ summaryKeys) =<< mapMTableWithNameNoLengthCheck summaryCol t
   where s t = "s: " <> dimensions t
 {-# INLINABLE summary #-}
 

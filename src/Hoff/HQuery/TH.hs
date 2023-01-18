@@ -4,7 +4,7 @@
 module Hoff.HQuery.TH where
 
 import qualified Data.Vector as V
-import           Hoff.HQuery
+import           Hoff.HQuery.Expressions
 import           Language.Haskell.TH hiding (Exp)
 import           Yahp hiding (Type)
 

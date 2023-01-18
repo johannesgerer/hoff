@@ -13,7 +13,7 @@ import           Database.SQLite.Simple as S (Connection, Query, ToRow, bind, St
 import           Database.SQLite3 as D hiding (open)
 import           Hoff.Dict
 import           Hoff.H
-import           Hoff.HQuery ()
+import           Hoff.HQuery.Expressions ()
 import           Hoff.Table
 import           Hoff.Utils
 import           Yahp hiding (bind)

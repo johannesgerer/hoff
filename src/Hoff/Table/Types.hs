@@ -10,6 +10,7 @@ module Hoff.Table.Types
 
 import           Control.Lens
 import           Data.Coerce
+import           Data.Functor.Classes
 import           Data.Functor.Classes as Reexport
 import qualified Data.HashTable.ST.Cuckoo as HT
 import           Data.Hashable
@@ -29,7 +30,6 @@ import           TextShow hiding (fromString)
 import           Type.Reflection as R
 import           Unsafe.Coerce ( unsafeCoerce )
 import           Yahp as P hiding (get, group, groupBy, (&), TypeRep, typeRep, Hashable, hashWithSalt, (:.:), null, (<|>))
-
 
 -- TODO: do not do unnecessary bound checks
 
@@ -167,23 +167,23 @@ data WrappedDyn f = forall g a. (Wrappable2 g a) => WrappedDyn { wdType :: (Type
 
 makeLensesWithSuffix ''WrappedDyn
 
-type Symbol = Text
-type Symbols = Vector Text
-
 type TableCol' f = WrappedDyn f
-type TableCol = WrappedDyn Vector
+type TableColH' f = H (TableCol' f)
+type TableCol = TableCol' Vector
 type TableColH = H TableCol
 type TableCell = WrappedDyn I
 type TableDict' f = Dict Symbols (Vector (TableCol' f))
-type TableDict = Dict Symbols (Vector TableCol)
+type TableDict = TableDict' Vector
 type TableRowDict = Dict Symbols (Vector TableCell)
+type TableRow = Table' I
+type TableRowH = H (Table' I)
 
 data Table' f = UnsafeTableWithColumns { unsafeTableWithColumns :: !(TableDict' f)
-                                       , unsafeTableRowNumbers  :: Vector Int }
+                                       , unsafeTableRowNumbers  :: f Int }
 type TableH' f = H (Table' f)
 type Table = Table' Vector
 type TableH = H Table
--- type GroupedCol = WrappedDyn (Vector :.: Vector)
+type GroupedCol f = TableCol' (f :.: Vector)
 -- type GroupedTableRaw = Table' (Vector :.: Vector)
 -- type GroupedTable = Dict Table GroupedTableRaw
 type KeyedTable = Dict Table Table
@@ -238,6 +238,14 @@ mapWrapped :: (forall g a. (Wrappable2 g a) => f (g a) -> h (g a)) -> WrappedDyn
 mapWrapped f (WrappedDyn t wd) = WrappedDyn t $ f wd
 {-# INLINE mapWrapped #-}
 
+-- unsafeCoerceWrappedDyn :: Coercible f g => WrappedDyn f -> WrappedDyn g
+-- unsafeCoerceWrappedDyn = unsafeCoerce
+
+
+singleGroupTableCol :: WrappedDyn (I :.: Vector) -> WrappedDyn Vector
+singleGroupTableCol = unsafeCoerce
+
+
 -- mapWrappedD :: (Functor f, Wrappable b, Wrappable1 k) => (f b -> h (k b)) -> WrappedDyn f -> WrappedDyn h
 -- mapWrappedD f = toWrappedDyn . f . fromWrappedDyn
 
@@ -266,9 +274,23 @@ instance Show TableKey where
   
 table :: HasCallStack => [(Symbol, TableCol)] -> TableH
 table = chain table2 . uncurry dict . V.unzip . V.fromList 
+{-# INLINABLE table #-}
+
+tableRowAnonymous :: HasCallStack => [(Maybe Symbol, TableCell)] -> TableRowH
+tableRowAnonymous = fmap tableRow . toDictAnonymous
+{-# INLINABLE tableRowAnonymous #-}
+
+groupedTableAnonymous :: HasCallStack => Grouping -> [(Maybe Symbol, GroupedCol Vector)] -> TableH
+groupedTableAnonymous idxs = tableFromGroupedCols2 idxs <=< toDictAnonymous
+{-# INLINABLE groupedTableAnonymous #-}
 
 tableAnonymous :: HasCallStack => [(Maybe Symbol, TableCol)] -> TableH
-tableAnonymous = chain table2 . (\(k,v) -> dict (V.fromList $ makeUniqueNames k) $ V.fromList v) . unzip
+tableAnonymous = chain table2 . toDictAnonymous
+{-# INLINABLE tableAnonymous #-}
+
+toDictAnonymous :: [(Maybe Symbol, a)] -> VectorDictH Symbol a
+toDictAnonymous = (\(k,v) -> dict (V.fromList $ makeUniqueNames k) $ V.fromList v) . unzip
+{-# INLINABLE toDictAnonymous #-}
 
 -- | inspired by q:
 -- 1. unnamed columns get called x
@@ -286,24 +308,50 @@ makeUniqueNames cols = runST $ do
 firstCol :: Table -> TableCol
 firstCol = (V.! 0) . vals
 
-table2 :: HasCallStack => TableDict -> H Table
+tableFromGroupedCols2 :: HasCallStack => Grouping -> TableDict' (Vector :.: Vector) -> TableH
+tableFromGroupedCols2 idxs d = case equalLength $ value ls of
+  Just (_, True)    -> throwH $ TableDifferentColumnLenghts $ show ls
+  Nothing               -> throwH $ TableWithNoColumn "not allowed"
+  _  -> pure $ unsafeTableWithRowIndices $ mapDictValues redistribute d
+  where ls = mapDictValues (withWrapped $ fmap V.length . unComp) d
+        redistribute = mapWrapped $ unsafeBackpermute (V.concatMap id idxs) . V.concatMap id . unComp
+
+table2 :: HasCallStack => TableDict -> TableH
 table2 d = case equalLength $ value ls of
   Just (_, True)    -> throwH $ TableDifferentColumnLenghts $ show ls
   Nothing               -> throwH $ TableWithNoColumn "not allowed"
-  _                     -> pure $ unsafeTableWithRowIndices d 
-  where ls = mapDictValues (withWrapped V.length) d
+  _                     -> pure $ unsafeTableWithRowIndices d
+  where ls = mapDictValues (withWrapped $ I . V.length) d
 
 tableNoLengthCheck :: HasCallStack => TableDict -> TableH
 tableNoLengthCheck x | count x > 0      = pure $ unsafeTableWithRowIndices x
                      | True             = throwH $ TableWithNoColumn ""
 
-unsafeTableWithRowIndices :: Iterable (Table' f) => TableDict' f -> Table' f
+tableRow :: TableRowDict -> TableRow
+tableRow = flip UnsafeTableWithColumns $ I 0
+
+unsafeTableWithRowIndices :: TableDict -> Table
 unsafeTableWithRowIndices d = r
   where r = UnsafeTableWithColumns d $ V.enumFromN 0 $ count r
 {-# INLINABLE unsafeTableWithRowIndices #-}
 
-equalLength :: Vector Int -> Maybe (Int, Bool)
-equalLength = fmap (\(c, cs) -> seq c $ (c, V.any (/= c) cs)) . V.uncons
+-- class (Foldable f, Functor f, Eq1 f) => GroupConcatable' f where
+--   concatGroups :: VectorDict Symbol (TableCol' f) -> TableDict
+
+-- type GroupConcatable f = GroupConcatable' (f :.: Vector)
+
+-- instance GroupConcatable' (I :.: Vector) where
+--   concatGroups = unsafeCoerce :: VectorDict Symbol (TableCol' (I :.: Vector)) -> VectorDict Symbol TableCol
+
+-- instance GroupConcatable' (Vector :.: Vector) where
+--   concatGroups = mapDictValues $ mapWrapped $ V.concatMap id . unComp
+
+-- instance GroupConcatable' Vector where
+--   concatGroups = id
+  
+
+equalLength :: Eq1 f => Vector (f Int) -> Maybe ((f Int), Bool)
+equalLength = fmap (\(c, cs) -> seq c $ (c, V.any (not . eq1 c) cs)) . V.uncons
 
 tc' :: forall a f . (ICoerce f a, ToVector f, Wrappable a) => Symbol -> f a -> Table
 tc' name = tcF' name . coerceI
@@ -367,11 +415,11 @@ instance Iterable Table where
 
   null = withWrapped V.null . firstCol
 
-  take n = mapTableWrapped $ H.take n
+  take n = mapTableWrappedNoLengthCheck $ H.take n
 
-  drop n = mapTableWrapped $ H.drop n
+  drop n = mapTableWrappedNoLengthCheck $ H.drop n
 
-  unsafeBackpermute ks = mapTableWrapped $ flip G.unsafeBackpermute $ coerce ks
+  unsafeBackpermute ks = mapTableWrappedNoLengthCheck $ flip G.unsafeBackpermute $ coerce ks
 
                                 
 
@@ -393,17 +441,17 @@ zipTable3 :: (Symbol -> TableCol' f -> c -> a) -> Table' f -> Vector c -> Vector
 zipTable3 f t = V.zipWith3 f (cols t) $ vals t
 {-# INLINABLE zipTable3 #-}
 
-mapTableWithName :: Iterable (Table' g) => (Symbol -> TableCol' f -> TableCol' g) -> Table' f -> Table' g
-mapTableWithName f = unsafeTableWithRowIndices . mapDictWithKey f . flipTable
+mapTableWithNameNoLengthCheck:: (Symbol -> TableCol -> TableCol) -> Table -> Table
+mapTableWithNameNoLengthCheck f = unsafeTableWithRowIndices . mapDictWithKey f . flipTable
 
-mapMTableWithName :: (Iterable (Table' g), Monad m) => (Symbol -> TableCol' f -> m (TableCol' g)) -> Table' f -> m (Table' g)
-mapMTableWithName f = fmap unsafeTableWithRowIndices . mapDictWithKeyM f . flipTable
+mapMTableWithNameNoLengthCheck :: Monad m => (Symbol -> TableCol -> m TableCol) -> Table -> m Table
+mapMTableWithNameNoLengthCheck f = fmap unsafeTableWithRowIndices . mapDictWithKeyM f . flipTable
 
-mapTable :: Iterable (Table' g) => (TableCol' f -> TableCol' g) -> Table' f -> Table' g
-mapTable f = unsafeTableWithRowIndices . mapDictValues f . flipTable
+mapTableNoLengthCheck :: (TableCol -> TableCol) -> Table -> Table
+mapTableNoLengthCheck f = unsafeTableWithRowIndices . mapDictValues f . flipTable
 
-mapTableWrapped :: Iterable (Table' h) => (forall g a. (Wrappable2 g a) => f (g a) -> h (g a)) -> Table' f -> Table' h
-mapTableWrapped f = mapTable $ mapWrapped f
+mapTableWrappedNoLengthCheck :: (forall g a. (Wrappable2 g a) => Vector (g a) -> Vector (g a)) -> Table -> Table
+mapTableWrappedNoLengthCheck f = mapTableNoLengthCheck $ mapWrapped f
 
 -- * Pairs of WrappedDyns (for zipping, useful for sorting)
 

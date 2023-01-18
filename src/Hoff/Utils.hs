@@ -2,7 +2,7 @@
 module Hoff.Utils where
 
 import           Control.Monad.IO.Class
-import qualified Data.Coerce
+import           Data.Coerce
 import           Data.SOP
 import           Data.Text hiding (foldl')
 import           Data.Time
@@ -12,6 +12,9 @@ import qualified System.Clock as C
 import           Text.Printf
 import           TextShow as TS hiding (fromString)
 import           Yahp hiding (get, group, groupBy, (&), TypeRep, typeRep)
+
+type Symbol = Text
+type Symbols = Vector Text
 
 time :: MonadIO m => Text -> m t -> m t
 time name a = do
@@ -26,15 +29,15 @@ time name a = do
                 (diff :: Double) name)
 
 
-type ICoerce f a = Data.Coerce.Coercible (f a) (f (I a))
-type UICoerce f a = Data.Coerce.Coercible (f (I a)) (f a)
+type ICoerce f a = Coercible (f a) (f (I a))
+type UICoerce f a = Coercible (f (I a)) (f a)
 
 coerceI :: forall a f . ICoerce f a => f a -> f (I a)
-coerceI = Data.Coerce.coerce
+coerceI = coerce
 {-# INLINE coerceI #-}
 
 coerceUI :: forall a f . UICoerce f a => f (I a) -> f a
-coerceUI = Data.Coerce.coerce
+coerceUI = coerce
 {-# INLINE coerceUI #-}
 
 newtype None = None () -- Python yay!
@@ -64,3 +67,18 @@ builderFromVector = VectorBuilder . (:)
 
 appendVector :: VectorBuilder a -> Vector a -> VectorBuilder a
 appendVector (VectorBuilder b) a = VectorBuilder $ b . (a:)
+
+-- * IsLabel instances 
+
+instance {-# OVERLAPS #-} KnownSymbol m => IsLabel m [Symbol] where
+  fromLabel = pure $ fromLabel @m
+  {-# INLINABLE fromLabel #-}
+  
+instance {-# OVERLAPS #-} KnownSymbol m => IsLabel m Symbols where
+  fromLabel = pure $ fromLabel @m
+  {-# INLINABLE fromLabel #-}
+  
+instance {-# OVERLAPS #-} KnownSymbol m => IsLabel m Symbol where
+  fromLabel = toS $ symbolVal (Proxy @m)
+  {-# INLINABLE fromLabel #-}
+  

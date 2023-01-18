@@ -19,7 +19,7 @@ import           Hoff.TypedTable
 import           Hoff.Utils
 import           Hoff.Vector
 import           Type.Reflection as R
-import           Yahp hiding (reader, ask, (:.:), group, delete, take, filter, (<|>))
+import           Yahp hiding (reader, ask, (:.:), group, delete, take, filter, (<|>), unlines)
 
 newtype NamedTableReader f a = NamedTableReader
   { fromNamedTableReader :: (Maybe Symbol, ReaderT f H a) }
@@ -49,6 +49,22 @@ type Agg        = HQuery GroupedTable
 
 type AggDyn     = HQueryDyn GroupedTable
 type AggDyns    = [AggDyn]
+
+
+-- besser: 
+data GroupedTable' f = GroupedTable' { gtGroupSizes :: Vector Int
+                                    , gtToGroups   :: forall a . Vector a -> Vector (Vector a)
+                                    -- ^ takes the source vector and returns the groups
+                                    , gtTable      :: Table
+                                    , gtGrouped    :: VectorDict Symbol (WrappedDyn (f :.: Vector))
+                                    }
+
+type Exp       a = (GroupedTable' f) -> f (Vector a)
+type ExpDyn      = (GroupedTable' f) -> f (Vector TableCol)
+
+type Agg       a = (GroupedTable' f) -> f a
+type AggDyn    a = (GroupedTable' f) -> f TableCol
+
 
 
 makeLensesWithSuffix ''NamedTableReader
@@ -203,16 +219,78 @@ co x = noName $ reader $ flip V.replicate x . contextCount
 {-# INLINE co #-}
 
 -- | use aggregation result as constant value
-ca :: Agg a -> Exp a
+ca :: HasCallStack => Agg a -> Exp a
 ca = mapNTR $ \agr -> ReaderT $ \t -> replicateSameLength t . V.head <$> runReaderT agr (fullGroup t)
 {-# INLINE ca #-}
 
-fby :: Agg a -> ExpDyns -> Exp a
+
+-- | for each group, distribute the aggregated value back to the whole group
+fby :: HasCallStack => Agg a -> ExpDyns -> Exp a
 fby agg bys = flip mapNTR agg $ \agg' -> ReaderT $ \t -> do
   idxs <- snd . getGroupsAndGrouping <$> select bys t
   broadcastGroupValue idxs <$> runReaderT agg' (fromGrouping idxs t)
 {-# INLINABLE fby #-}
 
+-- * Window functions
+
+-- | for each group, generate a new vector with one entry for each row in the group
+aggVectorDistributer :: HasCallStack => Agg (Vector a) -> ExpDyns -> Exp a
+aggVectorDistributer agg bys = flip mapNTR agg $ \agg' -> ReaderT $ \t -> do
+  idxs <- snd . getGroupsAndGrouping <$> select bys t
+  unsafeBackpermute (V.concatMap id idxs) . V.concatMap id <$> runReaderT agg' (fromGrouping idxs t)
+{-# INLINABLE aggVectorDistributer #-}
+
+-- | for each group, generate the resulting vector and distribute it back to the original row
+-- for functions that do not depend on the order of the input, we have `eby = const`
+--
+-- the function must not change the length of the vector
+eby :: (HasCallStack, Typeable a) => (Vector a -> Vector b) -> ExpDyns -> Exp a -> Exp b
+eby f bys exp' = flip mapNTR exp' $ \exp -> ReaderT $ \t -> do
+  idxs <- snd . getGroupsAndGrouping <$> select bys t
+  expVs <- applyGrouping idxs <$> runReaderT exp t
+  let resVs = f <$> expVs
+  if fmap length expVs == fmap length resVs then
+    pure $ unsafeBackpermute (V.concatMap id idxs) $ V.concatMap id resVs
+    else throwH $ CountMismatch $ unlines $ "Function returned vector of different length:\n" :
+         toList (V.zipWith (\a b -> show (length a, length b)) expVs (V.take 10 resVs))
+{-# INLINE eby #-}
+
+
+nextD :: HasCallStack => HQueryDyn t -> HQueryDyn t
+nextD = HQueryDyn . liftCWithName (modifyMaybeCol $ Just $ TableColModifierWithDefault nextV)
+{-# INLINABLE nextD #-}
+
+prevD :: HasCallStack => HQueryDyn t -> HQueryDyn t
+prevD = HQueryDyn . liftCWithName (modifyMaybeCol $ Just $ TableColModifierWithDefault prevV)
+{-# INLINABLE prevD #-}
+
+-- nextD :: HQueryDyn t -> HQueryDyn t
+-- nextD = liftE $ flip V.snoc Nothing . V.tail
+
+prev :: forall a t . HQuery t a -> HQuery t (Maybe a)
+prev = liftE $ prevV Nothing . fmap Just
+{-# INLINABLE prev #-}
+
+next :: forall a t . HQuery t a -> HQuery t (Maybe a)
+next = liftE $ nextV Nothing . fmap Just
+{-# INLINABLE next #-}
+
+prevM :: forall a t . HQuery t (Maybe a) -> HQuery t (Maybe a)
+prevM = liftE $ prevV Nothing
+{-# INLINABLE prevM #-}
+
+nextM :: forall a t . HQuery t (Maybe a) -> HQuery t (Maybe a)
+nextM = liftE $ nextV Nothing
+{-# INLINABLE nextM #-}
+
+prevV :: a -> Vector a -> Vector a
+prevV d = V.cons d . V.init
+{-# INLINABLE prevV #-}
+
+nextV :: b -> Vector b -> Vector b
+nextV d = flip V.snoc d . V.tail
+{-# INLINABLE nextV #-}
+  
 -- *** explicit vectors
 --
 -- most functions (like `select`) that consume these will check if the vector have the correct length
@@ -291,7 +369,7 @@ tableColD name = HQueryDyn $ NamedTableReader $ if name == "i"
 -- | aggregates the values of the given static query for each group into a vector
 expVectorAgg :: (HasCallStack, Typeable a) => Exp a -> Agg (Vector a)
 expVectorAgg = mapA id
-{-# INLINABLE expVectorAgg #-}
+{-# INLINE expVectorAgg #-}
 
 -- | aggregates the column values for each group into a vector
 tableColAgg :: (HasCallStack, Typeable a) => Symbol -> Agg (Vector a)
@@ -349,6 +427,8 @@ runWhere wh = chainToH @Table $ \t -> fromMask <$> runForgetNameNameC wh t
 filter :: (HasCallStack, ToTableAndBack t) => Where -> t -> H' t
 filter wh = useToTableAndBack $ \t -> chain2 applyWhereResult t $ runWhere wh t
 {-# INLINABLE filter #-}
+
+-- * Helper function
 
 toFiltered :: (HasCallStack, ToTable t) => (a -> Table -> H c) -> a -> Where -> t -> H c
 toFiltered x a wh = chainToH @Table $ x a <=< filter wh 
@@ -630,14 +710,6 @@ liftEH :: (Vector a -> VectorH b) -> HQuery t a -> HQuery t b
 liftEH f = unHQuery_ . fromNamedTableReader_ . _2 %~ mapReaderT (chain f)
 {-# INLINE liftEH #-}
 
-liftE1flip :: (a2 -> a1 -> c) -> a1 -> HQuery t a2 -> HQuery t c
-liftE1flip = liftE1 . flip
-{-# INLINE liftE1flip #-}
-
-liftE1 :: (a1 -> a2 -> c) -> a1 -> HQuery t a2 -> HQuery t c
-liftE1 f = mapE . f
-{-# INLINE liftE1 #-}
-
 liftCWithName' :: (Maybe Symbol -> TableCol -> VectorH p) -> HQueryDyn f -> HQuery f p
 liftCWithName' f = HQuery . liftCWithName f
 {-# INLINABLE liftCWithName' #-}
@@ -672,6 +744,6 @@ mapD1 f = withHQueryDyn $ commonAgg $ \grps -> withWrapped' (\tr -> WrappedDyn t
 
 commonAgg :: ((forall a . (Vector a -> Vector (Vector a))) -> a1 -> a2)
   -> NamedTableReader Table a1 -> NamedTableReader GroupedTable a2
-commonAgg f = fromNamedTableReader_ . _2 %~ ReaderT . g
-  where g expr (GroupedTable _ grouper t) = f grouper <$> runReaderT expr t
+commonAgg f = fromNamedTableReader_ . _2 %~ \exp -> ReaderT $ \(GroupedTable _ grouper t) ->
+  f grouper <$> runReaderT exp t
 {-# INLINABLE commonAgg #-}

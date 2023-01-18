@@ -11,7 +11,7 @@ import Data.Vector (Vector)
 import Database.ODBC.SQLServer as S
 import Foreign hiding (void)
 import Hoff.H
-import Hoff.HQuery ()
+import Hoff.HQuery.Expressions ()
 import Hoff.Stream
 import Hoff.Table
 import Yahp hiding (bind)

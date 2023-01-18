@@ -123,6 +123,10 @@ mapDictValues :: (HashableDictComponent k, Functor f, DictComponent (f a), DictC
 mapDictValues = unsafeMapDictValue . fmap
 {-# INLINABLE mapDictValues #-}
 
+-- unsafeCoerceDictValue :: (Coercible k k2, HashableDictComponent k, HashableDictComponent k2, DictComponent v)
+  -- => Dict k v -> Dict k2 v
+-- unsafeCoerceDictValue = unsafeCoerce
+
 unsafeMapDictKey :: (HashableDictComponent k, HashableDictComponent k2, DictComponent v) => (k -> k2) -> Dict k v -> Dict k2 v
 unsafeMapDictKey f v = dictNoLengthCheck (f $ key v) $ value v
 {-# INLINABLE unsafeMapDictKey #-}
