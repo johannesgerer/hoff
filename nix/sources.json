@@ -1,0 +1,86 @@
+{
+    "all-cabal-hashes": {
+        "branch": "hackage",
+        "description": "A repository containing all cabal files, with added metadata for package hashes",
+        "homepage": null,
+        "owner": "commercialhaskell",
+        "repo": "all-cabal-hashes",
+        "rev": "c1c5a0f441bd7766d333b85bfbf78b4850c99690",
+        "sha256": "0lb35qjhkxv7639zh1p0hjlfwl00s61by95916p08pbnx5a7qyxj",
+        "type": "tarball",
+        "url": "https://github.com/commercialhaskell/all-cabal-hashes/archive/c1c5a0f441bd7766d333b85bfbf78b4850c99690.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "chronos": {
+        "branch": "master",
+        "description": "Haskell time library focusing on performance ",
+        "homepage": null,
+        "owner": "johannesgerer",
+        "repo": "chronos",
+        "rev": "9dc993b1a9b6b5867a9c10b81a72fdb306c6387c",
+        "sha256": "0bj8jvz41abybvbdj9yh24bz7fscrpxi567ajp8cml73l2yphylc",
+        "type": "tarball",
+        "url": "https://github.com/johannesgerer/chronos/archive/9dc993b1a9b6b5867a9c10b81a72fdb306c6387c.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "large-records": {
+        "branch": "main",
+        "description": "Library to support efficient compilation of large records (linear in the number of record fields)",
+        "homepage": null,
+        "owner": "well-typed",
+        "repo": "large-records",
+        "rev": "9cf4766baceb8ed83ae85295d57025406b073f37",
+        "sha256": "0554gqlvc602qb6i26wjnvcfnvprvvanpp68s9nm9kq1hdqlcg24",
+        "type": "tarball",
+        "url": "https://github.com/well-typed/large-records/archive/9cf4766baceb8ed83ae85295d57025406b073f37.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "mach-nix": {
+        "branch": "master",
+        "description": "Create highly reproducible python environments",
+        "homepage": "",
+        "owner": "DavHau",
+        "repo": "mach-nix",
+        "rev": "3.5.0",
+        "sha256": "185qf6d5xg8qk1hb1y0b5gggr71vdz8v9d5ga4zg7dmcb1aypxcg",
+        "type": "tarball",
+        "url": "https://github.com/DavHau/mach-nix/archive/3.5.0.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "nixpkgs": {
+        "branch": "master",
+        "description": "Nix Packages collection",
+        "homepage": "",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "2b54954fdb4a25c6f9cf80cfd36c43e4c4577c0b",
+        "sha256": "1sn4az6xc2ag23pnxhh8dbgxnk757d5d63spnv93bnls9k3d9vrg",
+        "type": "tarball",
+        "url": "https://github.com/nixos/nixpkgs/archive/2b54954fdb4a25c6f9cf80cfd36c43e4c4577c0b.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "odbc": {
+        "branch": "master",
+        "description": "Haskell ODBC binding with SQL Server support",
+        "homepage": "",
+        "owner": "johannesgerer",
+        "repo": "odbc",
+        "rev": "db3356347592eeb0385ee3c04ae46edf8efd0627",
+        "sha256": "18caq0m8v57xk7hmx6l32h43s2rfc5fchapgmjc9k6b9zrwzmdp8",
+        "type": "tarball",
+        "url": "https://github.com/johannesgerer/odbc/archive/db3356347592eeb0385ee3c04ae46edf8efd0627.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "yahp": {
+        "branch": "main",
+        "description": "yet another Haskell prelude",
+        "homepage": null,
+        "owner": "johannesgerer",
+        "repo": "yahp",
+        "rev": "f6f2d7a133ae9e3720fde6176e472c3ee3404c62",
+        "sha256": "1nwapih9qx606wk5h67lkn591cagvxga3afsikn8bxfzi22sccmc",
+        "type": "tarball",
+        "url": "https://github.com/johannesgerer/yahp/archive/f6f2d7a133ae9e3720fde6176e472c3ee3404c62.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    }
+}
