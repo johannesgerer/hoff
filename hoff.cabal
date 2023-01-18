@@ -1,0 +1,218 @@
+cabal-version:      3.0
+name:               hoff
+version:            0.1.0.0
+
+synopsis: Haskell dataframes
+
+-- A longer description of the package.
+-- description:
+
+-- A URL where users can report bugs.
+-- bug-reports:
+
+-- The license under which the package is released.
+license: Apache-2.0
+
+author: Johannes Gerer
+copyright: 2022-2023 Johannes Gerer
+-- category:
+
+data-files: python/HoffSerialise.py
+
+library
+
+    exposed-modules:
+       Hoff
+       ,Hoff.Dict
+       ,Hoff.Examples
+       ,Hoff.Examples2
+       ,Hoff.H
+       ,Hoff.HQuery.Expressions
+       ,Hoff.HQuery.Execution
+       ,Hoff.HQuery.Operators
+       ,Hoff.HQuery.TH
+       ,Hoff.Iterable
+       ,Hoff.JSON
+       ,Hoff.Python
+       ,Hoff.Serialise
+       ,Hoff.Show
+       ,Hoff.SqlServer
+       ,Hoff.Sqlite
+       ,Hoff.Stream
+       ,Hoff.Table
+       ,Hoff.TypedTable
+       ,Hoff.Table.Operations
+       ,Hoff.Table.Show
+       ,Hoff.Table.Types
+       ,Hoff.Tests
+       ,Hoff.Utils
+       ,Hoff.Vector
+
+    autogen-modules: Paths_hoff
+    other-modules: Paths_hoff
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    build-depends:    QuickCheck
+                    , aeson
+                    , base
+                    , base64-bytestring
+                    , bytestring
+                    , cborg
+                    , chronos
+                    , clock
+                    , containers
+                    , data-default
+                    , deepseq
+                    , direct-sqlite
+                    , directory
+                    , dlist
+                    , filepath
+                    , ghc-prim
+                    , hashable
+                    , hashtables
+                    , hex-text
+                    , hspec
+                    , interpolatedstring-perl6
+                    , random
+                    -- hoff needs large-anon distribute
+                    , large-anon >= 0.2.1
+                    , lens
+                    , mtl
+                    , odbc
+                    , pretty-simple
+                    , primitive
+                    , process
+                    , scientific
+                    , serialise
+                    , sop-core
+                    , sqlite-simple
+                    , template-haskell
+                    , temporary
+                    , text
+                    , text-show
+                    , time
+                    , timeit
+                    , transformers
+                    , tuple
+                    , unix
+                    , unordered-containers
+                    , vector
+                    , vector-algorithms
+                    , vector-instances
+                    , yahp
+                    -- , constraint-tuples
+                    
+    ghc-options:
+     -Werror=partial-fields
+     -Werror=incomplete-record-updates
+     -Werror=incomplete-uni-patterns
+     -Werror=incomplete-patterns
+     -Werror=unused-top-binds -Werror=unused-local-binds -Werror=unused-pattern-binds
+     -Werror=unused-matches
+     -Werror=overflowed-literals
+     -Werror=overlapping-patterns
+     -Werror=missing-fields
+     -Werror=typed-holes
+     -Werror=empty-enumerations
+     -Werror=unrecognised-pragmas
+     -Werror=missing-methods
+     -Wall
+     -Wno-orphans
+     -Wno-missing-signatures
+     -Wno-unused-do-bind
+     -Wno-name-shadowing
+     -Wno-unticked-promoted-constructors
+     -Wcompat
+     -fplugin=Data.Record.Anon.Plugin
+      -j +RTS -A128m -n2m -RTS
+
+    default-extensions:
+      DataKinds
+      DefaultSignatures
+      DerivingVia
+      FunctionalDependencies
+      GADTs
+      LambdaCase
+      NoImplicitPrelude
+      OverloadedLabels
+      OverloadedStrings
+      RebindableSyntax
+      RecordWildCards
+      TypeFamilies
+
+      NoPolyKinds
+
+-- NoPolyKinds is needed or we get ghc panic:
+      
+-- src/Hoff/TypedTable.hs:30:101: error:ghc: panic! (the 'impossible' happened)
+--   (GHC version 9.2.4:
+--         No skolem info:
+--   [k_a2BZr]
+--   Call stack:
+--       CallStack (from HasCallStack):
+--         callStackDoc, called at compiler/GHC/Utils/Panic.hs:181:37 in ghc:GHC.Utils.Panic
+--         pprPanic, called at compiler/GHC/Tc/Errors.hs:2912:17 in ghc:GHC.Tc.Errors
+                    
+    hs-source-dirs:   src
+    default-language: GHC2021
+
+test-suite test1
+  type: exitcode-stdio-1.0
+  main-is: Test.hs
+  ghc-options: -Wall -rtsopts -threaded
+    -j +RTS -A128m -n2m -RTS -O2
+  hs-source-dirs:
+    test
+  build-depends:
+                      base
+                    , hoff
+
+  default-language: GHC2021
+
+
+executable bench
+  main-is:             Bench.hs
+  build-depends:       hoff
+                     , base
+                     , vector
+                     , yahp
+                     , timeit
+                     , random
+                     , vector-algorithms
+                     , text
+                     
+  hs-source-dirs:      exec
+  default-language: GHC2021
+  ghc-options: -Wall -rtsopts -threaded
+    -j +RTS -A128m -n2m -RTS -O2
+     -Wno-missing-signatures
+     -Wno-orphans
+     -Wno-missing-signatures
+     -Wno-unused-do-bind
+     -Wno-name-shadowing
+     -Wno-unticked-promoted-constructors
+     -Wno-unused-imports
+     -Wno-unused-matches
+
+  buildable: False
+
+  default-extensions:
+    DataKinds
+    RecordWildCards
+    NoImplicitPrelude
+    FunctionalDependencies
+    GADTs
+    RebindableSyntax
+    DefaultSignatures
+    TypeFamilies
+    DerivingVia
+    OverloadedStrings
+    LambdaCase
+    OverloadedLabels
+
+-- Local Variables:
+-- compile-command: "direnv exec . bash -c 'pip list; cabal exec -- ghc-pkg list'"
+-- End:
+
+-- compile-command: "nix-shell --run 'cabal exec -- ghc-pkg list'"
