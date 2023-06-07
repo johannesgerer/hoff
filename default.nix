@@ -30,29 +30,6 @@ index 01d341f..0802f6f 100644
 +  Manual: True
 '';
     pkgs = pkgs2;
-    mach-nix = import sources.mach-nix {
-      pkgs = import (import "${sources.mach-nix}/mach_nix/nix/nixpkgs-src.nix") {
-        config = { allowUnfree = true; }; overlays = []; };
-    };
-    pyEnv = mach-nix.mkPython {
-      # _.tomli.buildInputs.add = [pkgs.python310Packages.flit-core];
-      # _.distlib.buildInputs.add = [pkgs.python310Packages.flit-core];
-      # _.jedi.buildInputs.add = [pkgs.python310Packages.platformdirs];
-      # _.black.buildInputs.add = [pkgs.python310Packages.platformdirs];
-      # _.black.propagatedBuildInputs.mod = pySelf: _: old:
-        # old ++ [pkgs.python310Packages.platformdirs];
-      # providers =  {default = "nixpkgs,conda,wheel,sdist";
-      #               tomli = "conda,wheel,sdist";
-      #              };
-      requirements = ''
-        pip
-        pandas
-        cbor2
-        ipython
-        platformdirs
-      '';
-      # probagatedBuildInputs = [pkgs.pkg-config];
-    };
     source-overrides = {
       vector-algorithms = "0.9.0.1";
       ghc-tcplugin-api = "0.10.0.0";
@@ -99,10 +76,9 @@ index 01d341f..0802f6f 100644
       inherit source-overrides overrides;
       modifier = drv:
         disableLibraryProfiling (dontHaddock (addBuildTools 
-          (with pkgs.haskellPackages; [ cabal-install ghcid pyEnv]) drv));
+          (with pkgs.haskellPackages; [ cabal-install ghcid ]) drv));
     };
 in this
    // { inherit source-overrides overrides;
         env = this.env.overrideAttrs(_: prev: { shellHook = prev.shellHook + ''
-   export PYTHON_BIN=${pyEnv}/bin/python
    ''; });}

@@ -19,35 +19,11 @@ license: Apache-2.0
 
 data-files: python/HoffSerialise.py
 
-library
+executable bug
 
-    exposed-modules:
-       Hoff
-       ,Hoff.Dict
-       ,Hoff.Examples
-       ,Hoff.H
-       ,Hoff.HQuery
-       ,Hoff.HQuery.Operators
-       ,Hoff.HQuery.TH
-       ,Hoff.Iterable
-       ,Hoff.JSON
-       ,Hoff.Python
-       ,Hoff.Serialise
-       ,Hoff.Show
-       ,Hoff.SqlServer
-       ,Hoff.Sqlite
-       ,Hoff.Stream
-       ,Hoff.Table
-       ,Hoff.TypedTable
-       ,Hoff.Table.Operations
-       ,Hoff.Table.Show
-       ,Hoff.Table.Types
-       ,Hoff.Tests
-       ,Hoff.Utils
-       ,Hoff.Vector
+    main-is:
+       Main.hs
 
-    autogen-modules: Paths_hoff
-    other-modules: Paths_hoff
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
